@@ -162,7 +162,13 @@ En su primer arranque, NiFi autogenera un usuario y contraseña y crea los certi
 # Extraer credenciales generadas de los logs
 sudo grep -E "Generated Username|Generated Password" /opt/nifi/logs/nifi-app.log
 ```
+## Cambiar credenciales
 
+```bash
+sudo systemctl stop nifi
+sudo JAVA_HOME=/usr/lib/jvm/jdk-17.0.2 /opt/nifi/bin/nifi.sh set-single-user-credentials admin 'TuContraseñaSegura123!'
+sudo systemctl start nifi
+```
 **Acceso Web:**
 1. Navegar a `https://<IP_DEL_SERVIDOR>:8443/nifi`
 2. Aceptar el certificado autofirmado generado por NiFi.
