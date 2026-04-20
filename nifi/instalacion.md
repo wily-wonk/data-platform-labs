@@ -71,8 +71,13 @@ sudo nano /opt/nifi/conf/nifi.properties
 ```
 *Modificar las siguientes propiedades en el archivo:*
 ```properties
+# 1. Deja la interfaz en blanco y mantén el host en 0.0.0.0
 nifi.web.https.host=0.0.0.0
 nifi.web.https.port=8443
+nifi.web.https.network.interface.default=
+
+# 2. En la sección del proxy, pon tu IP pero CON EL PUERTO INCLUIDO
+nifi.web.proxy.host=192.168.0.8:8443
 ```
 
 ### 5.2. Configuración de JVM y PID
