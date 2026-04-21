@@ -314,4 +314,39 @@ La arquitectura se considera operativa si retorna los siguientes subprocesos:
 * `Jps`
 
 
+## 9. Interfaces Web y Seguridad de Acceso (Firewall)
+
+Por diseño de seguridad, las interfaces de administración web de Apache Hadoop operan en puertos específicos que deben ser expuestos explícitamente a través del firewall del sistema operativo. En la arquitectura de Hadoop 3.x, los puertos estándar de monitoreo difieren de las versiones legacy, requiriendo una configuración de red precisa.
+
+### 9.1. Puertos de Administración Requeridos
+Para la auditoría y monitoreo del clúster Single-Node, se requieren los siguientes accesos:
+
+* **NameNode (HDFS):** Puerto TCP `9870` (Sustituye al antiguo 50070). Permite visualizar la salud general del sistema de archivos distribuido, la capacidad de almacenamiento disponible y explorar los directorios de datos.
+* **ResourceManager (YARN):** Puerto TCP `8088`. Interfaz central para monitorear la asignación de memoria, recursos de CPU y el estado de ejecución de los trabajos de procesamiento de datos.
+
+### 9.2. Apertura de Puertos en UFW
+Desde la cuenta con privilegios de administrador del sistema, se aplican las reglas de red para permitir el tráfico HTTP hacia los demonios de Hadoop, manteniendo bloqueado el resto del tráfico no autorizado.
+
+```bash
+# Permitir tráfico web hacia el NameNode (HDFS)
+sudo ufw allow 9870/tcp
+
+# Permitir tráfico web hacia el ResourceManager (YARN)
+sudo ufw allow 8088/tcp
+
+# Recargar las políticas de seguridad para aplicar los cambios
+sudo ufw reload
+
+# Verificar el estado actual de los puertos expuestos
+sudo ufw status
+```
+
+### 9.3. Verificación de Acceso Web
+Una vez aplicadas las reglas del firewall, abrir un navegador web desde una estación de trabajo autorizada en la red y acceder a las siguientes URLs, sustituyendo `<IP_DEL_SERVIDOR>` por la dirección correspondiente
+
+* **Dashboard de HDFS (NameNode):** `http://<IP_DEL_SERVIDOR>:9870`
+* **Dashboard de YARN (ResourceManager):** `http://<IP_DEL_SERVIDOR>:8088`
+
+
+
 
