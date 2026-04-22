@@ -1,16 +1,10 @@
 
-# **GUÍA COMPLETA: INSTALACIÓN DE APACHE AIRFLOW 2.6.3 EN DEBIAN 10 (VERSIÓN FINAL CORREGIDA)**
+# Guía de Instalación: Apache Airflow 2.6.3
 
-##  **Requisitos Previos**
-- Debian 10 (Buster)
-- Python 3.7+ instalado
-- PostgreSQL 12+ (opcional pero recomendado)
-- Acceso a internet
-- Usuario con permisos sudo
+Esta guía detalla la instalación de Apache Airflow en Debian, utilizando Python 3.7. Se aplica el principio de mínimo privilegio creando un usuario dedicado y se configura PostgreSQL como base de datos de metadatos, junto con los conectores necesarios para interactuar con Hadoop, Hive y Kafka.
 
----
-
-##  **PASO 1: INSTALAR DEPENDENCIAS DEL SISTEMA**
+### PASO 1: INSTALAR DEPENDENCIAS DEL SISTEMA
+**Usuario requerido:** Administrador (sudo)
 
 ```bash
 # Actualizar repositorios
@@ -41,15 +35,16 @@ sudo apt install -y \
 python3 --version
 ```
 
----
-
-##  **PASO 2: CREAR DIRECTORIO Y ENTORNO VIRTUAL**
+### PASO 2: CREAR USUARIO DEDICADO, DIRECTORIO Y ENTORNO VIRTUAL
+**Usuario requerido:** Administrador (sudo)
 
 ```bash
-# Crear directorio para Airflow
-sudo mkdir -p /usr/local/airflow
-sudo chown -R $USER:$USER /usr/local/airflow
-cd /usr/local/airflow
+# Crear grupo y usuario de servicio sin privilegios root
+sudo groupadd airflow
+sudo useradd -r -m -d /usr/local/airflow -s /bin/bash -g airflow airflow
+
+# Cambiar a la sesión del nuevo usuario para las instalaciones
+sudo su - airflow
 
 # Crear entorno virtual
 python3 -m venv airflow_venv
@@ -61,26 +56,22 @@ source airflow_venv/bin/activate
 pip install --upgrade pip setuptools wheel
 ```
 
----
-
-##  **PASO 3: CONFIGURAR VARIABLES DE ENTORNO**
+### PASO 3: CONFIGURAR VARIABLES DE ENTORNO
+**Usuario requerido:** `airflow`
 
 ```bash
 # Definir AIRFLOW_HOME
 export AIRFLOW_HOME=/usr/local/airflow
 echo 'export AIRFLOW_HOME=/usr/local/airflow' >> ~/.bashrc
 
-# Definir URL de constraints (Python 3.7)
+# Definir URL de constraints (Para Python 3.7)
 export CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-2.6.3/constraints-3.7.txt"
-
-# Hacer permanente CONSTRAINT_URL (útil para futuras instalaciones)
 echo "export CONSTRAINT_URL=\"${CONSTRAINT_URL}\"" >> ~/.bashrc
 source ~/.bashrc
 ```
 
----
-
-##  **PASO 4: INSTALAR APACHE AIRFLOW CORE**
+### PASO 4: INSTALAR APACHE AIRFLOW CORE
+**Usuario requerido:** `airflow` (con entorno virtual activado)
 
 ```bash
 # Instalar Apache Airflow
@@ -90,12 +81,11 @@ pip install apache-airflow==2.6.3 --constraint "${CONSTRAINT_URL}"
 airflow version
 ```
 
----
-
-##  **PASO 5: INSTALAR PROVIDERS PARA HADOOP ECOSYSTEM**
+### PASO 5: INSTALAR PROVIDERS PARA HADOOP ECOSYSTEM
+**Usuario requerido:** `airflow` (con entorno virtual activado)
 
 ```bash
-# Instalar providers (excepto Kafka primero)
+# Instalar providers base
 pip install \
   "apache-airflow-providers-apache-hdfs" \
   "apache-airflow-providers-apache-hive" \
@@ -105,16 +95,15 @@ pip install \
 # Instalar confluent-kafka (versión compatible con Python 3.7)
 pip install confluent-kafka==1.9.2
 
-# Instalar provider Kafka sin dependencias
+# Instalar provider Kafka sin dependencias cruzadas
 pip install apache-airflow-providers-apache-kafka --no-deps
 
 # Verificar providers instalados
 airflow providers list
 ```
 
----
-
-##  **PASO 6: CONFIGURAR POSTGRESQL PARA AIRFLOW**
+### PASO 6: CONFIGURAR POSTGRESQL PARA AIRFLOW
+**Usuario requerido:** Salir de `airflow` (usar `exit`) y ejecutar como sudoer.
 
 ```bash
 # Crear usuario y base de datos en PostgreSQL
@@ -124,75 +113,58 @@ CREATE DATABASE airflow_db;
 GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow_user;
 EOF
 
-# Instalar driver PostgreSQL para Python
+# Volver al usuario airflow e instalar el driver de BD
+sudo su - airflow
+source airflow_venv/bin/activate
 pip install psycopg2-binary
 ```
 
----
-
-##  **PASO 7: INICIALIZAR AIRFLOW**
+### PASO 7: INICIALIZAR Y CONFIGURAR AIRFLOW
+**Usuario requerido:** `airflow` (con entorno virtual activado)
 
 ```bash
-# Inicializar la base de datos (crea airflow.cfg)
+# Inicializar la base de datos sqlite temporal (crea la estructura de carpetas y airflow.cfg)
 airflow db init
 
 # Respaldar configuración original
 cp $AIRFLOW_HOME/airflow.cfg $AIRFLOW_HOME/airflow.cfg.backup
+
+# Aplicar TODA la configuración mediante comandos nativos seguros
+airflow config set core sql_alchemy_conn postgresql+psycopg2://airflow_user:airflow_password@localhost:5432/airflow_db
+airflow config set core executor LocalExecutor
+airflow config set core load_examples False
+airflow config set webserver authenticate True
+airflow config set api auth_backends airflow.api.auth.backend.basic_auth
+airflow config set logging base_log_folder /usr/local/airflow/logs
+
+# Cambiar puerto a 8081 para evitar conflictos con otros monitores
+airflow config set webserver web_server_port 8081
 ```
 
----
-
-##  **PASO 8: CONFIGURACIÓN AUTOMÁTICA DE AIRFLOW (SIN EDITAR MANUALMENTE)**
-
-```bash
-# Aplicar TODA la configuración con sed (automático)
-sed -i 's|^sql_alchemy_conn = sqlite:///.*|sql_alchemy_conn = postgresql+psycopg2://airflow_user:airflow_password@localhost:5432/airflow_db|' $AIRFLOW_HOME/airflow.cfg
-sed -i 's|^executor = .*|executor = LocalExecutor|' $AIRFLOW_HOME/airflow.cfg
-sed -i 's|^load_examples = .*|load_examples = False|' $AIRFLOW_HOME/airflow.cfg
-sed -i 's|^authenticate = .*|authenticate = True|' $AIRFLOW_HOME/airflow.cfg
-sed -i 's|^auth_backend = .*|auth_backend = airflow.api.auth.backend.basic_auth|' $AIRFLOW_HOME/airflow.cfg
-sed -i 's|^base_log_folder = .*|base_log_folder = /usr/local/airflow/logs|' $AIRFLOW_HOME/airflow.cfg
-
-#  CORRECCIÓN CLAVE: Cambiar puerto a 8081 (8080 suele estar ocupado)
-sed -i '/^\[webserver\]/a web_server_port = 8081' $AIRFLOW_HOME/airflow.cfg
-
-# Verificar cambios aplicados
-echo "=== CONFIGURACIÓN APLICADA ==="
-grep -E "sql_alchemy_conn|executor|load_examples|authenticate|auth_backend|base_log_folder|web_server_port" $AIRFLOW_HOME/airflow.cfg | grep -v "^#" | grep -v "^$"
-```
-
----
-
-## **PASO 9: REINICIALIZAR CON POSTGRESQL**
+### PASO 8: REINICIALIZAR CON POSTGRESQL Y CREAR ADMIN
+**Usuario requerido:** `airflow` (con entorno virtual activado)
 
 ```bash
-# Reinicializar la base de datos con la nueva configuración
-airflow db reset -y
+# Migrar la base de datos oficial a PostgreSQL
 airflow db init
-```
 
----
-
-## **PASO 10: CREAR USUARIO ADMINISTRADOR**
-```bash
 # Crear usuario admin
 airflow users create \
   --username admin \
   --firstname Admin \
   --lastname User \
   --role Admin \
-  --email admin@example.com \
+  --email admin@gamlp.gob.bo \
   --password admin123
 
 # Verificar usuario creado
 airflow users list
 ```
 
----
+### PASO 9: CREAR SERVICIOS SYSTEMD (CON PUERTO 8081)
+**Usuario requerido:** Salir de `airflow` (usar `exit`) y ejecutar como sudoer.
 
-##  **PASO 11: CREAR SERVICIOS SYSTEMD (CON PUERTO 8081)**
-
-### **11.1 Servicio para Airflow Webserver**
+**9.1 Servicio para Airflow Webserver**
 ```bash
 sudo tee /etc/systemd/system/airflow-webserver.service > /dev/null <<EOF
 [Unit]
@@ -202,8 +174,8 @@ Wants=postgresql.service
 
 [Service]
 Type=simple
-User=$USER
-Group=$USER
+User=airflow
+Group=airflow
 Environment="PATH=/usr/local/airflow/airflow_venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="AIRFLOW_HOME=/usr/local/airflow"
 WorkingDirectory=/usr/local/airflow
@@ -219,7 +191,7 @@ WantedBy=multi-user.target
 EOF
 ```
 
-### **11.2 Servicio para Airflow Scheduler**
+**9.2 Servicio para Airflow Scheduler**
 ```bash
 sudo tee /etc/systemd/system/airflow-scheduler.service > /dev/null <<EOF
 [Unit]
@@ -229,8 +201,8 @@ Wants=postgresql.service
 
 [Service]
 Type=simple
-User=$USER
-Group=$USER
+User=airflow
+Group=airflow
 Environment="PATH=/usr/local/airflow/airflow_venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="AIRFLOW_HOME=/usr/local/airflow"
 WorkingDirectory=/usr/local/airflow
@@ -246,46 +218,27 @@ WantedBy=multi-user.target
 EOF
 ```
 
----
-
-##  **PASO 12: ACTIVAR SERVICIOS**
+### PASO 10: ACTIVAR SERVICIOS Y CONFIGURAR FIREWALL
+**Usuario requerido:** Administrador (sudo)
 
 ```bash
-# Recargar configuración de systemd
+# Recargar configuración de systemd y habilitar servicios
 sudo systemctl daemon-reload
+sudo systemctl enable airflow-webserver airflow-scheduler
+sudo systemctl start airflow-webserver airflow-scheduler
 
-# Habilitar servicios para inicio automático
-sudo systemctl enable airflow-webserver
-sudo systemctl enable airflow-scheduler
-
-# Iniciar servicios
-sudo systemctl start airflow-webserver
-sudo systemctl start airflow-scheduler
-
-# Esperar 5 segundos a que inicien
-sleep 5
-
-# Verificar estado
-sudo systemctl status airflow-webserver --no-pager
-sudo systemctl status airflow-scheduler --no-pager
-```
-
----
-
-## **PASO 13: CONFIGURAR FIREWALL**
-
-```bash
 # Abrir puerto 8081 en el firewall
 sudo ufw allow 8081/tcp
 sudo ufw reload
 
-# Verificar que el puerto está escuchando
-ss -tlnp | grep 8081
+# Esperar 5 segundos a que inicien y verificar estado
+sleep 5
+sudo systemctl status airflow-webserver --no-pager
+sudo systemctl status airflow-scheduler --no-pager
 ```
 
----
-
-##  **PASO 14: VERIFICACIÓN FINAL Y ACCESO**
+### PASO 11: VERIFICACIÓN FINAL Y CREACIÓN DE DAG
+**Usuario requerido:** Salir a tu usuario normal y ejecutar comandos de red.
 
 ```bash
 # Obtener IP del servidor
@@ -304,15 +257,11 @@ echo "Password: admin123"
 echo "========================================"
 ```
 
----
-
-##  **PASO 15: CREAR PRIMER DAG DE PRUEBA**
-
+**Crear DAG de Ejemplo (Como usuario `airflow`):**
 ```bash
-# Crear directorio para DAGs (si no existe)
+sudo su - airflow
 mkdir -p $AIRFLOW_HOME/dags
 
-# Crear DAG de ejemplo
 cat > $AIRFLOW_HOME/dags/mi_primer_dag.py <<'EOF'
 from datetime import datetime, timedelta
 from airflow import DAG
@@ -330,7 +279,7 @@ default_args = {
 }
 
 def mi_funcion_python():
-    print("¡Hola desde Airflow en Debian 10!")
+    print("¡Hola desde Airflow en Debian!")
     return "Ejecución exitosa"
 
 with DAG(
@@ -359,98 +308,4 @@ with DAG(
     
     tarea_inicio >> tarea_python >> tarea_fin
 EOF
-
-echo " DAG de prueba creado en: $AIRFLOW_HOME/dags/mi_primer_dag.py"
-```
-
----
-
-##  **COMANDOS ÚTILES PARA GESTIÓN**
-
-```bash
-# Ver logs de servicios
-sudo journalctl -u airflow-webserver --since today
-sudo journalctl -u airflow-scheduler --since today
-
-# Reiniciar servicios
-sudo systemctl restart airflow-webserver
-sudo systemctl restart airflow-scheduler
-
-# Detener servicios
-sudo systemctl stop airflow-webserver
-sudo systemctl stop airflow-scheduler
-
-# Ver estado de la base de datos
-airflow db check
-
-# Listar DAGs disponibles
-airflow dags list
-
-# Probar una tarea específica
-airflow tasks test mi_primer_dag tarea_python 2026-04-21
-```
-
----
-
-##  **SOLUCIÓN DE PROBLEMAS COMUNES**
-
-### **Error: Puerto 8080 ocupado**
-```bash
-# YA CORREGIDO: Usamos puerto 8081 por defecto
-```
-
-### **Error: "airflow: command not found"**
-```bash
-source /usr/local/airflow/airflow_venv/bin/activate
-```
-
-### **Error: 404 Not Found en /**
-```bash
-# Usar URL con /login/
-curl http://localhost:8081/login/
-```
-
-### **Error: Conexión rechazada a PostgreSQL**
-```bash
-sudo systemctl status postgresql
-sudo -u postgres psql -c "SELECT usename FROM pg_user;"
-```
-
----
-
-##  **ESTRUCTURA FINAL**
-
-```
-/usr/local/airflow/
-├── airflow_venv/          # Entorno virtual Python
-├── airflow.cfg            # Configuración (puerto 8081)
-├── airflow.db             # No usado (usamos PostgreSQL)
-├── dags/                  # Directorio de DAGs
-├── logs/                  # Logs de ejecución
-└── webserver_config.py    # Configuración del webserver
-```
-
----
-
-##  **CHECKLIST DE VERIFICACIÓN**
-
-```bash
-echo "=== VERIFICACIÓN COMPLETA ==="
-echo "✓ Airflow: $(airflow version)"
-echo "✓ Webserver: $(systemctl is-active airflow-webserver)"
-echo "✓ Scheduler: $(systemctl is-active airflow-scheduler)"
-echo "✓ Puerto 8081: $(ss -tlnp | grep 8081 | wc -l) escuchando"
-echo "✓ PostgreSQL: $(sudo -u postgres psql -t -c "SELECT 1 FROM pg_database WHERE datname='airflow_db'" | xargs)"
-echo "✓ Usuario admin: $(airflow users list | grep admin | wc -l) encontrado"
-echo "✓ URL: http://$(hostname -I | awk '{print $1}'):8081/login/"
-```
-
----
-
-##  **ACCESO FINAL**
-
-```
-URL: http://<IP_DEL_SERVIDOR>:8081/login/
-Usuario: admin
-Password: admin123
 ```
