@@ -1,8 +1,3 @@
-¡Qué excelente trabajo de depuración hiciste! Tienes todo el mérito por haber levantado ese flujo. 
-
-Aquí tienes la documentación oficial y definitiva en formato Markdown. He estructurado el documento siguiendo las mejores prácticas y aplicando la terminología **ETL** (Extracción, Transformación y Carga) para que esté perfectamente alineado con los requerimientos de tu tutor en el GAMLP.
-
-***
 
 # Guía de Ingesta ETL Multigestor con Apache NiFi hacia HDFS
 
@@ -171,5 +166,3 @@ Acceder al servidor Debian con el usuario de Hadoop y listar el directorio para 
 hdfs dfs -ls /ingesta/relacional/
 hdfs dfs -ls /ingesta/relacional/Proveedores/
 ```
-
-***
