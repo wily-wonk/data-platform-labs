@@ -1,0 +1,170 @@
+
+# Guía de Ingesta ETL Multigestor con Apache NiFi hacia HDFS
+
+El presente documento detalla el procedimiento para configurar un flujo de trabajo ETL automatizado en Apache NiFi. El objetivo es extraer información de tres motores de bases de datos relacionales distintos (PostgreSQL, MySQL y SQL Server), estandarizar sus metadatos e ingestar los registros resultantes en formato Avro dentro del ecosistema Hadoop (HDFS) de la UADI.
+
+
+
+## 1. Configuración de Red y Firewall
+
+Dado que los orígenes de datos residen en un servidor host (Windows) y NiFi opera en el servidor Linux (Debian), es necesario habilitar la comunicación bidireccional en los puertos correspondientes.
+
+### 1.1. Abrir Puertos en Host Origen (Windows)
+Ejecutar la siguiente configuración en una consola PowerShell con privilegios de Administrador para permitir el tráfico entrante:
+
+```powershell
+# Puerto para PostgreSQL
+New-NetFirewallRule -DisplayName "UADI_Ingesta_Postgres" -Direction Inbound -LocalPort 5433 -Protocol TCP -Action Allow
+
+# Puerto para MySQL
+New-NetFirewallRule -DisplayName "UADI_Ingesta_MySQL" -Direction Inbound -LocalPort 3307 -Protocol TCP -Action Allow
+
+# Puerto para SQL Server
+New-NetFirewallRule -DisplayName "UADI_Ingesta_SQLServer" -Direction Inbound -LocalPort 1434 -Protocol TCP -Action Allow
+```
+
+### 1.2. Permitir Tráfico de Salida en Servidor NiFi (Debian)
+Asegurar que el firewall `ufw` permita a NiFi salir a consultar los orígenes de datos:
+
+```bash
+sudo ufw allow out to any port 5433 proto tcp
+sudo ufw allow out to any port 3307 proto tcp
+sudo ufw allow out to any port 1434 proto tcp
+sudo ufw reload
+```
+
+---
+
+## 2. Descarga e Instalación de Controladores JDBC
+
+Se deben proveer los controladores oficiales para que Java 17 (entorno de NiFi) pueda comunicarse con los motores de bases de datos.
+
+**Usuario requerido:** Administrador (sudo) en el servidor Debian.
+
+```bash
+# 1. Descargar conectores en directorio temporal
+cd /tmp
+wget https://jdbc.postgresql.org/download/postgresql-42.6.0.jar
+wget https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.3.0/mysql-connector-j-8.3.0.jar
+wget https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.6.1.jre11/mssql-jdbc-12.6.1.jre11.jar
+
+# 2. Mover conectores a la librería de NiFi
+sudo mv postgresql-42.6.0.jar mysql-connector-j-8.3.0.jar mssql-jdbc-12.6.1.jre11.jar /opt/nifi/lib/
+
+# 3. Asignar permisos y propiedad al usuario de servicio
+sudo chmod 644 /opt/nifi/lib/postgresql-42.6.0.jar /opt/nifi/lib/mysql-connector-j-8.3.0.jar /opt/nifi/lib/mssql-jdbc-12.6.1.jre11.jar
+sudo chown nifi:nifi /opt/nifi/lib/postgresql-42.6.0.jar /opt/nifi/lib/mysql-connector-j-8.3.0.jar /opt/nifi/lib/mssql-jdbc-12.6.1.jre11.jar
+
+# 4. Reiniciar el servicio para cargar librerías
+sudo systemctl restart nifi
+```
+
+---
+
+## 3. Preparación del Sistema de Archivos Distribuido (HDFS)
+
+Antes de iniciar la ingesta, se debe preparar la estructura de directorios en Hadoop para recibir los datos de forma dinámica.
+
+**Usuario requerido:** `hadoop_user`
+
+```bash
+# Crear directorio base para la ingesta relacional
+hdfs dfs -mkdir -p /ingesta/relacional
+
+# Asignar permisos totales para escritura dinámica desde NiFi
+hdfs dfs -chmod -R 777 /ingesta
+```
+
+---
+
+## 4. Configuración en Apache NiFi
+
+En la interfaz gráfica de NiFi, se crea un *Process Group* dedicado (ej. `PG_Ingesta_Multigestor`).
+
+### 4.1. Servicios de Controlador (Controller Services)
+Se deben configurar tres servicios `DBCPConnectionPool`.
+*(Nota: Reemplazar `<IP_WINDOWS>` por la dirección IPv4 real del host).*
+
+**A. Pool PostgreSQL (Proveedores)**
+* **Database Connection URL:** `jdbc:postgresql://<IP_WINDOWS>:5433/negocios_db`
+* **Database Driver Class Name:** `org.postgresql.Driver`
+* **Database Driver Location(s):** `/opt/nifi/lib/postgresql-42.6.0.jar`
+* **Database User:** `admin`
+* **Password:** `dd8)JBY)/2026`
+
+**B. Pool MySQL (Clientes)**
+* **Database Connection URL:** `jdbc:mysql://<IP_WINDOWS>:3307/negocios_db`
+* **Database Driver Class Name:** `com.mysql.cj.jdbc.Driver`
+* **Database Driver Location(s):** `/opt/nifi/lib/mysql-connector-j-8.3.0.jar`
+* **Database User:** `root`
+* **Password:** `dd8)JBY)/2026`
+
+**C. Pool SQL Server (Productos)**
+* **Database Connection URL:** `jdbc:sqlserver://<IP_WINDOWS>:1434;databaseName=master;encrypt=true;trustServerCertificate=true;`
+* **Database Driver Class Name:** `com.microsoft.sqlserver.jdbc.SQLServerDriver`
+* **Database Driver Location(s):** `/opt/nifi/lib/mssql-jdbc-12.6.1.jre11.jar`
+* **Database User:** `sa`
+* **Password:** `dd8)JBY)/2026`
+
+*(Una vez configurados, habilitar los tres servicios desde la interfaz haciendo clic en el icono del rayo).*
+
+---
+
+### 4.2. Diseño del Flujo de Datos (Data Flow)
+
+#### Rama 1: PostgreSQL
+1.  **QueryDatabaseTable:**
+    * Database Connection Pooling Service: `DBCPConnectionPool_Postgres`
+    * Table Name: `proveedores`
+    * Maximum-value Columns: `id`
+2.  **UpdateAttribute:** (Relación `success`)
+    * `uadi.origen`: `PostgreSQL`
+    * `uadi.tipo_dato`: `Proveedores`
+    * `uadi.fecha_ingesta`: `${now():format('yyyy-MM-dd HH:mm:ss')}`
+
+#### Rama 2: MySQL
+1.  **QueryDatabaseTable:**
+    * Database Connection Pooling Service: `DBCPConnectionPool_MySQL`
+    * Table Name: `clientes`
+    * Maximum-value Columns: `cliente_id`
+2.  **UpdateAttribute:** (Relación `success`)
+    * `uadi.origen`: `MySQL`
+    * `uadi.tipo_dato`: `Clientes`
+    * `uadi.fecha_ingesta`: `${now():format('yyyy-MM-dd HH:mm:ss')}`
+
+#### Rama 3: SQL Server
+1.  **QueryDatabaseTable:**
+    * Database Connection Pooling Service: `DBCPConnectionPool_SQLServer`
+    * Table Name: `productos` (o `dbo.productos`)
+    * Maximum-value Columns: `fecha_creacion` *(Se utiliza fecha al ser el ID un UUID)*
+2.  **UpdateAttribute:** (Relación `success`)
+    * `uadi.origen`: `SQLServer`
+    * `uadi.tipo_dato`: `Productos`
+    * `uadi.fecha_ingesta`: `${now():format('yyyy-MM-dd HH:mm:ss')}`
+
+#### Nodo de Convergencia: Destino HDFS
+Las tres relaciones `success` de los procesadores `UpdateAttribute` convergen en un único procesador de escritura.
+
+1.  **PutHDFS:**
+    * Hadoop Configuration Resources: `/usr/local/hadoop/etc/hadoop/core-site.xml,/usr/local/hadoop/etc/hadoop/hdfs-site.xml`
+    * Directory: `/ingesta/relacional/${uadi.tipo_dato}` *(Creación dinámica de carpetas según el tipo de dato).*
+    * Conflict Resolution Strategy: `append`
+
+---
+
+## 5. Ejecución y Validación
+
+Para ejecutar la canalización ETL:
+1.  Iniciar el procesador `PutHDFS` (Destino).
+2.  Iniciar los procesadores `UpdateAttribute` (Transformación).
+3.  Iniciar los procesadores `QueryDatabaseTable` (Extracción).
+
+**Validación en Hadoop:**
+Acceder al servidor Debian con el usuario de Hadoop y listar el directorio para confirmar la llegada de los archivos en formato `.avro`.
+
+```bash
+hdfs dfs -ls /ingesta/relacional/
+hdfs dfs -ls /ingesta/relacional/Proveedores/
+```
+
+***
