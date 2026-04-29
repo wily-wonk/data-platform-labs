@@ -10,7 +10,7 @@ Esta configuración es la estándar para procesos de extracción tradicionales d
 | Driver JDBC | Archivo .jar correspondiente | Debe cargarse en el servidor NiFi según el motor y versión. |
 | Usuario | Usuario de Solo Lectura | Se requiere únicamente el privilegio SELECT. |
 | Permisos | SELECT sobre tablas específicas | No se requieren permisos de superusuario ni de escritura. |
-| Firewall | Puerto abierto hacia NiFi | Permitir tráfico desde la IP 172.29.0.116. |
+| Firewall | Puerto abierto hacia NiFi | Permitir tráfico desde la IP del [SERVIDOR]. |
 
 ---
 
