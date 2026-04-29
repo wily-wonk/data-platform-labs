@@ -73,3 +73,21 @@ sudo systemctl restart zookeeper kafka hadoop-hdfs hadoop-yarn hbase hive-server
 # Ver logs de un servicio
 sudo journalctl -u <servicio> -f
 ```
+
+---
+
+##  URLs 
+
+| Herramienta | URL | Puerto |
+|------------|-----|--------|
+| **NiFi** | `https://192.168.7.46:8443/nifi` | 8443 |
+| **Atlas** | `http://192.168.7.46:21000` | 21000 |
+| **Airflow** | `http://192.168.7.46:8081` | 8081 |
+| **HDFS NameNode** | `http://192.168.7.46:9870` | 9870 |
+| **YARN** | `http://192.168.7.46:8088` | 8088 |
+| **HBase Master** | `http://192.168.7.46:16010` | 16010 |
+| **HiveServer2** | `http://192.168.7.46:10002` | 10002 |
+| **Solr** | `http://192.168.7.46:8983/solr` | 8983 |
+| **Kafka UI** | `http://192.168.7.46:8070` | 8070 |
+
+---
