@@ -1,5 +1,5 @@
 
-# Ecosistema de Gobernanza de Datos
+# Ecosistema
 
 > Servidor: `GMLPSR014DB048` | Debian 10 | Java 17 (excepto Atlas con Java 11)
 
