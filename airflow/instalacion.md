@@ -1,7 +1,9 @@
 
 # Guía de Instalación: Apache Airflow 2.6.3
 
-> Debian 10 | Python 3.7 | PostgreSQL 11 | Sin conflictos con puertos existentes
+> **Entorno:** Debian 10 | Python 3.7 | PostgreSQL 11 | Kafka 3.7.2 | HDFS 3.4.0 | Hive 4.0.0
+> **Puerto:** 8081 (sin conflicto con Kafka UI en 8080)
+> **Usuario de servicio:** `airflow`
 
 ---
 
@@ -82,7 +84,7 @@ airflow version
 
 ---
 
-## PASO 5: INSTALAR PROVIDERS PARA HADOOP ECOSYSTEM
+## PASO 5: INSTALAR PROVIDERS PARA ECOSISTEMA HADOOP
 
 **Usuario:** airflow (con entorno virtual activado)
 
@@ -94,7 +96,7 @@ pip install \
   "apache-airflow-providers-http" \
   --constraint "${CONSTRAINT_URL}"
 
-# Provider Kafka (confluent-kafka 1.9.2 compatible Python 3.7 + librdkafka-dev)
+# Provider Kafka - compatible Python 3.7 + librdkafka-dev
 pip install confluent-kafka==1.9.2
 pip install apache-airflow-providers-apache-kafka --no-deps
 
@@ -128,7 +130,8 @@ pip install psycopg2-binary==2.9.5
 **Usuario:** airflow (con entorno virtual activado)
 
 ```bash
-airflow db init
+# Generar airflow.cfg sin crear base de datos SQLite
+airflow config list > /dev/null
 cp $AIRFLOW_HOME/airflow.cfg $AIRFLOW_HOME/airflow.cfg.backup
 
 # Configuración vía comandos nativos
@@ -144,13 +147,15 @@ airflow config set kafka broker_url localhost:9092
 
 ---
 
-## PASO 8: REINICIALIZAR CON POSTGRESQL Y CREAR ADMIN
+## PASO 8: MIGRAR BASE DE DATOS Y CREAR ADMIN
 
 **Usuario:** airflow (con entorno virtual activado)
 
 ```bash
-airflow db init
+# Migrar la base de datos a PostgreSQL
+airflow db migrate
 
+# Crear usuario administrador
 airflow users create \
   --username admin \
   --firstname Admin \
@@ -159,12 +164,13 @@ airflow users create \
   --email admin@gamlp.gob.bo \
   --password admin123
 
+# Verificar usuario creado
 airflow users list
 ```
 
 ---
 
-## PASO 9: CREAR SERVICIOS SYSTEMD (PUERTO 8081)
+## PASO 9: CREAR SERVICIOS SYSTEMD
 
 **Usuario:** Salir de airflow (`exit`) y ejecutar como sudoer
 
@@ -188,8 +194,6 @@ ExecStart=/usr/local/airflow/airflow_venv/bin/airflow webserver -p 8081
 Restart=on-failure
 RestartSec=10
 KillMode=mixed
-StandardOutput=append:/usr/local/airflow/logs/webserver.log
-StandardError=append:/usr/local/airflow/logs/webserver_error.log
 
 [Install]
 WantedBy=multi-user.target
@@ -216,8 +220,6 @@ ExecStart=/usr/local/airflow/airflow_venv/bin/airflow scheduler
 Restart=always
 RestartSec=10
 KillMode=mixed
-StandardOutput=append:/usr/local/airflow/logs/scheduler.log
-StandardError=append:/usr/local/airflow/logs/scheduler_error.log
 
 [Install]
 WantedBy=multi-user.target
@@ -245,10 +247,21 @@ sudo systemctl status airflow-scheduler --no-pager
 
 ---
 
-## ACCESO
+## VERIFICACIÓN Y ACCESO
 
-- **URL:** `http://<IP>:8081`
+```bash
+# Ver logs en tiempo real
+sudo journalctl -u airflow-webserver -f
+sudo journalctl -u airflow-scheduler -f
+
+# Verificar puerto
+ss -tlnp | grep 8081
+```
+
+- **URL:** `http://<IP_DEL_SERVIDOR>:8081`
 - **Usuario:** `admin`
 - **Contraseña:** `admin123`
 
 ---
+
+
