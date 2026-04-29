@@ -111,7 +111,7 @@ airflow providers list
 
 ```bash
 sudo -u postgres psql <<EOF
-CREATE USER airflow_user WITH PASSWORD 'airflow_password';
+CREATE USER airflow_user WITH PASSWORD '[PASSWORD]';
 CREATE DATABASE airflow_db;
 GRANT ALL PRIVILEGES ON DATABASE airflow_db TO airflow_user;
 EOF
@@ -134,26 +134,27 @@ pip install psycopg2-binary==2.9.5
 airflow config list > /dev/null
 cp $AIRFLOW_HOME/airflow.cfg $AIRFLOW_HOME/airflow.cfg.backup
 
-# Configuración vía comandos nativos
-airflow config set core sql_alchemy_conn postgresql+psycopg2://airflow_user:airflow_password@localhost:5432/airflow_db
-airflow config set core executor LocalExecutor
-airflow config set core load_examples False
-airflow config set webserver authenticate True
-airflow config set api auth_backends airflow.api.auth.backend.basic_auth
-airflow config set logging base_log_folder /usr/local/airflow/logs
-airflow config set webserver web_server_port 8081
-airflow config set kafka broker_url localhost:9092
+# Aplicar configuración con sed
+sed -i 's|sql_alchemy_conn = sqlite:////usr/local/airflow/airflow.db|sql_alchemy_conn = postgresql+psycopg2://airflow_user:[PASSWORD]@localhost:5432/airflow_db|' $AIRFLOW_HOME/airflow.cfg
+sed -i 's|executor = SequentialExecutor|executor = LocalExecutor|' $AIRFLOW_HOME/airflow.cfg
+sed -i 's|load_examples = True|load_examples = False|' $AIRFLOW_HOME/airflow.cfg
+sed -i 's|web_server_port = 8080|web_server_port = 8081|' $AIRFLOW_HOME/airflow.cfg
+sed -i 's|^authenticate = False|authenticate = True|' $AIRFLOW_HOME/airflow.cfg
+sed -i 's|auth_backends = airflow.api.auth.backend.session|auth_backends = airflow.api.auth.backend.basic_auth|' $AIRFLOW_HOME/airflow.cfg
+
+# Verificar cambios
+grep -E "sql_alchemy_conn|executor =|load_examples|web_server_port|^authenticate|auth_backends" $AIRFLOW_HOME/airflow.cfg
 ```
 
 ---
 
-## PASO 8: MIGRAR BASE DE DATOS Y CREAR ADMIN
+## PASO 8: INICIALIZAR BASE DE DATOS Y CREAR ADMIN
 
 **Usuario:** airflow (con entorno virtual activado)
 
 ```bash
-# Migrar la base de datos a PostgreSQL
-airflow db migrate
+# Inicializar la base de datos en PostgreSQL
+airflow db init
 
 # Crear usuario administrador
 airflow users create \
@@ -161,8 +162,8 @@ airflow users create \
   --firstname Admin \
   --lastname User \
   --role Admin \
-  --email admin@gamlp.gob.bo \
-  --password admin123
+  --email [EMAIL] \
+  --password '[PASSWORD]'
 
 # Verificar usuario creado
 airflow users list
@@ -260,8 +261,8 @@ ss -tlnp | grep 8081
 
 - **URL:** `http://<IP_DEL_SERVIDOR>:8081`
 - **Usuario:** `admin`
-- **Contraseña:** `admin123`
+- **Contraseña:** la definida en el Paso 8
 
 ---
 
-
+Guárdala como `AIRFLOW_INSTALL.md`. ¿Algo más que ajustar?
