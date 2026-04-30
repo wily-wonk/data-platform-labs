@@ -91,3 +91,63 @@ sudo journalctl -u <servicio> -f
 | **Kafka UI** | `http://192.168.7.46:8070` | 8070 |
 
 ---
+## Rutas de Configuración
+
+| Componente | Archivo de Configuración | Usuario | Carpeta Principal |
+|-----------|-------------------------|--------|-------------------|
+| **ZooKeeper** | `/usr/local/zookeeper/conf/zoo.cfg` | `hadoop_user` | `/usr/local/zookeeper` |
+| **Kafka** | `/opt/kafka/config/server.properties` | `kafka` | `/opt/kafka` |
+| **Kafka Connect** | `/opt/kafka/config/connect-distributed.properties` | `kafka` | `/opt/kafka` |
+| **Kafka UI** | `/opt/kafka/config/kafka-ui.yml`  | `kafka` | `/opt/kafka` |
+| **Hadoop HDFS** | `/usr/local/hadoop/etc/hadoop/core-site.xml` | `hadoop_user` | `/usr/local/hadoop` |
+| **Hadoop HDFS** | `/usr/local/hadoop/etc/hadoop/hdfs-site.xml` | `hadoop_user` | `/usr/local/hadoop` |
+| **Hadoop YARN** | `/usr/local/hadoop/etc/hadoop/yarn-site.xml` | `hadoop_user` | `/usr/local/hadoop` |
+| **HBase** | `/usr/local/hbase/conf/hbase-site.xml` | `hadoop_user` | `/usr/local/hbase` |
+| **Hive** | `/usr/local/hive/conf/hive-site.xml` | `hadoop_user` | `/usr/local/hive` |
+| **Solr** | `/usr/local/solr/bin/solr.in.sh` | `solr` | `/usr/local/solr` |
+| **Atlas** | `/usr/local/atlas/conf/atlas-application.properties` | `hadoop_user` | `/usr/local/atlas` |
+| **Atlas** | `/usr/local/atlas/conf/atlas-env.sh` | `hadoop_user` | `/usr/local/atlas` |
+| **NiFi** | `/opt/nifi/conf/nifi.properties` | `nifi` | `/opt/nifi` |
+| **Airflow** | `/usr/local/airflow/airflow.cfg` | `airflow` | `/usr/local/airflow` |
+| **PostgreSQL** | `/etc/postgresql/11/main/postgresql.conf` | `postgres` | `/etc/postgresql/11/main` |
+| **PostgreSQL** | `/etc/postgresql/11/main/pg_hba.conf` | `postgres` | `/etc/postgresql/11/main` |
+
+## Rutas de JARs/Librerías
+
+| Componente | Carpeta de Librerías |
+|-----------|---------------------|
+| **Kafka** | `/opt/kafka/libs/` |
+| **Hadoop** | `/usr/local/hadoop/share/hadoop/` |
+| **HBase** | `/usr/local/hbase/lib/` |
+| **Hive** | `/usr/local/hive/lib/` |
+| **Solr** | `/usr/local/solr/server/solr-webapp/webapp/WEB-INF/lib/` |
+| **Atlas** | `/usr/local/atlas/server/webapp/atlas/WEB-INF/lib/` |
+| **NiFi** | `/opt/nifi/lib/` |
+
+## Rutas de Logs
+
+| Componente | Carpeta de Logs | Comando para ver en vivo |
+|-----------|----------------|--------------------------|
+| **ZooKeeper** | `/usr/local/zookeeper/logs/` | `sudo journalctl -u zookeeper -f` |
+| **Kafka** | `/opt/kafka/logs/` | `sudo journalctl -u kafka -f` |
+| **Kafka Connect** | `/opt/kafka/logs/` | `sudo journalctl -u kafka-connect -f` |
+| **Hadoop HDFS** | `/usr/local/hadoop/logs/` | `sudo journalctl -u hadoop-hdfs -f` |
+| **HBase** | `/usr/local/hbase/logs/` | `sudo journalctl -u hbase -f` |
+| **Hive** | `/usr/local/hive/logs/` | `sudo journalctl -u hive-server2 -f` |
+| **Solr** | `/usr/local/solr/server/logs/` | `sudo journalctl -u solr -f` |
+| **Atlas** | `/usr/local/atlas/logs/` | `sudo journalctl -u atlas -f` |
+| **NiFi** | `/opt/nifi/logs/` | `sudo journalctl -u nifi -f` |
+| **Airflow** | `/usr/local/airflow/logs/` | `sudo journalctl -u airflow-webserver -f` |
+| **PostgreSQL** | `/var/log/postgresql/` | `sudo journalctl -u postgresql -f` |
+
+## Usuarios del Sistema
+
+| Usuario | Grupo | Servicios |
+|--------|-------|-----------|
+| `hadoop_user` | `hadoop_group` | ZooKeeper, Hadoop, HBase, Hive, Atlas |
+| `kafka` | `kafka` | Kafka, Kafka Connect, Kafka UI |
+| `solr` | `solr` | Solr |
+| `nifi` | `nifi` | NiFi |
+| `airflow` | `airflow` | Airflow |
+| `postgres` | `postgres` | PostgreSQL |
+| `uitga` | `uitga` | Administrador (sudo) |
